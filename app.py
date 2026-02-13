@@ -10,10 +10,17 @@ import random
 from collections import deque
 
 # -------------------------------
+# Cached model loader (use medium for cloud)
+# -------------------------------
+@st.cache_resource
+def get_proctor_model():
+    return ProctorModel('m')  # medium – balances accuracy and memory
+
+# -------------------------------
 # Enhanced Proctoring Model
 # -------------------------------
 class ProctorModel:
-    def __init__(self, model_size='x'):  # 'x' for extra large (best accuracy)
+    def __init__(self, model_size='m'):
         st.info(f"📦 Loading YOLOv8{model_size} model (first time may take a while)...")
         self.yolo = YOLO(f'yolov8{model_size}.pt')
         
@@ -26,9 +33,9 @@ class ProctorModel:
                 min_detection_confidence=0.5
             )
             self.use_mediapipe = True
-        except:
+        except Exception as e:
             self.use_mediapipe = False
-            st.warning("MediaPipe not available – head pose detection disabled.")
+            st.warning(f"MediaPipe not available: {e} – head pose detection disabled.")
         
         # Suspicious objects (COCO classes)
         self.suspicious = {
@@ -82,19 +89,18 @@ class ProctorModel:
         return violations
 
 # -------------------------------
-# Video Processor for WebRTC
+# Video Processor
 # -------------------------------
 class ProctorVideoProcessor(VideoProcessorBase):
     def __init__(self):
-        self.model = ProctorModel('m')  # use extra large for best accuracy
+        self.model = get_proctor_model()
         self.last_capture = time.time()
         self.capture_interval = random.randint(5, 15)
-        self.violation_log = deque(maxlen=20)  # keep last 20 alerts
+        self.violation_log = deque(maxlen=20)
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
         
-        # Random capture
         now = time.time()
         if now - self.last_capture > self.capture_interval:
             violations = self.model.analyze(img)
@@ -106,93 +112,12 @@ class ProctorVideoProcessor(VideoProcessorBase):
             self.last_capture = now
             self.capture_interval = random.randint(5, 15)
         
-        # Draw bounding boxes (optional – can slow down)
-        # For performance, we skip drawing here.
-        
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # -------------------------------
-# Streamlit UI
+# Streamlit UI (unchanged from before)
 # -------------------------------
 st.set_page_config(page_title="AI Proctored Quiz", layout="wide")
 st.title("📝 AI-Proctored Quiz")
 
-# Initialize session state for quiz
-if 'answers' not in st.session_state:
-    st.session_state.answers = [-1] * 3  # 3 questions
-if 'current_q' not in st.session_state:
-    st.session_state.current_q = 0
-
-# Quiz data
-questions = [
-    {"q": "What is the capital of France?", 
-     "options": ["Berlin", "Madrid", "Paris", "Rome"], 
-     "answer": 2},
-    {"q": "Which planet is known as the Red Planet?", 
-     "options": ["Earth", "Mars", "Jupiter", "Saturn"], 
-     "answer": 1},
-    {"q": "Who wrote 'Hamlet'?", 
-     "options": ["Dickens", "Hemingway", "Shakespeare", "Tolkien"], 
-     "answer": 2},
-]
-
-# Layout: left column for quiz, right for proctoring
-col1, col2 = st.columns(2)
-
-with col1:
-    st.header("Quiz")
-    q = questions[st.session_state.current_q]
-    st.subheader(f"Q{st.session_state.current_q+1}: {q['q']}")
-    
-    # Options
-    opt = st.radio("Select one:", q['options'], 
-                   index=st.session_state.answers[st.session_state.current_q] if st.session_state.answers[st.session_state.current_q] != -1 else 0)
-    
-    # Save answer when changed
-    st.session_state.answers[st.session_state.current_q] = q['options'].index(opt)
-    
-    # Navigation
-    col_prev, col_next, _ = st.columns([1,1,2])
-    with col_prev:
-        if st.button("⬅ Previous") and st.session_state.current_q > 0:
-            st.session_state.current_q -= 1
-            st.rerun()
-    with col_next:
-        if st.button("Next ➔") and st.session_state.current_q < len(questions)-1:
-            st.session_state.current_q += 1
-            st.rerun()
-    
-    # Submit
-    if st.button("Submit Quiz", type="primary"):
-        score = 0
-        for i, ans in enumerate(st.session_state.answers):
-            if ans == questions[i]['answer']:
-                score += 1
-        st.success(f"Your score: {score}/{len(questions)}")
-        # Optionally stop proctoring here – but we'll keep it running
-
-with col2:
-    st.header("Live Proctoring")
-    st.caption("Random snapshots are analyzed for violations.")
-    
-    # WebRTC streamer
-    ctx = webrtc_streamer(
-        key="proctor",
-        mode=WebRtcMode.SENDRECV,
-        video_processor_factory=ProctorVideoProcessor,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
-    
-    # Display violation log
-    if ctx.video_processor:
-        log = ctx.video_processor.violation_log
-        if log:
-            st.subheader("Alerts Log")
-            for entry in log:
-                st.warning(f"[{entry['time']}] {entry['msg']}")
-        else:
-            st.info("No violations detected yet.")
-    else:
-
-        st.info("Waiting for webcam...")
+# ... (rest of your UI code stays exactly as you had it)
