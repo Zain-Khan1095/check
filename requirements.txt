@@ -1,7 +1,8 @@
 streamlit==1.28.1
 streamlit-webrtc==0.47.1
 opencv-python-headless==4.8.1.78
-ultralytics==8.0.220
-mediapipe==0.10.8
-numpy==1.24.3
-Pillow==10.0.0
+ultralytics==8.3.75          # latest as of 2025, supports Python 3.11+
+mediapipe==0.10.21           # compatible with Python 3.11+
+numpy==1.26.4
+Pillow==10.4.0
+av==12.3.0                    # needed for streamlit-webrtc
