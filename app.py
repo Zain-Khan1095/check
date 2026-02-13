@@ -86,7 +86,7 @@ class ProctorModel:
 # -------------------------------
 class ProctorVideoProcessor(VideoProcessorBase):
     def __init__(self):
-        self.model = ProctorModel('x')  # use extra large for best accuracy
+        self.model = ProctorModel('m')  # use extra large for best accuracy
         self.last_capture = time.time()
         self.capture_interval = random.randint(5, 15)
         self.violation_log = deque(maxlen=20)  # keep last 20 alerts
@@ -194,4 +194,5 @@ with col2:
         else:
             st.info("No violations detected yet.")
     else:
+
         st.info("Waiting for webcam...")
